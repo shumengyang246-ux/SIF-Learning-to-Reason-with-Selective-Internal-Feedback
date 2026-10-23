@@ -29,6 +29,7 @@ import torch
 
 import verl.utils.torch_functional as verl_F
 from verl.trainer.config import AlgoConfig
+from verl.trainer.ppo.quantile_feedback import pairwise_quantile_support, validate_peer_threshold
 
 POLICY_LOSS_REGISTRY = {}
 
@@ -309,178 +310,93 @@ def compute_grpo_outcome_advantage(
     return scores, scores
 
 
-def vote_intuitor_min_length(vote_number: int, vote_stride: int, vote_window: int) -> int:
-    """Minimum response length needed to fill ``vote_number`` certainty windows.
-
-    Tokens are sorted from high to low self-certainty. Window ``0`` is the top
-    ``vote_window`` tokens and window ``vote_number - 1`` is the lowest
-    ``vote_window`` tokens. At the minimum length the windows use stride
-    ``vote_stride`` (default: ``[0, 100)``, ``[50, 150)``, ..., ``[450, 550)``).
-    Longer rollouts keep those two endpoints and insert a larger gap between
-    consecutive windows.
-    """
-    if vote_number <= 0:
-        raise ValueError(f"vote_number must be positive, got {vote_number}")
-    if vote_stride <= 0:
-        raise ValueError(f"vote_stride must be positive, got {vote_stride}")
-    if vote_window <= 0:
-        raise ValueError(f"vote_window must be positive, got {vote_window}")
-    return vote_stride * (vote_number - 1) + vote_window
-
-
-def vote_intuitor_window_starts(length: int, vote_number: int, vote_window: int) -> list[int]:
-    """Start indices along a high-to-low certainty ranking.
-
-    For ``length == 550, vote_number == 10, vote_window == 100`` this is
-    ``[0, 50, ..., 450]``. For a longer rollout the last start is
-    ``length - vote_window``, so the final window is always the lowest 100 tokens.
-    """
-    if vote_number <= 0:
-        raise ValueError(f"vote_number must be positive, got {vote_number}")
-    if vote_window <= 0:
-        raise ValueError(f"vote_window must be positive, got {vote_window}")
-    if length < vote_window:
-        raise ValueError(f"length {length} is shorter than vote_window {vote_window}")
-    if vote_number == 1:
-        return [0]
-    span = length - vote_window
-    return [bin_idx * span // (vote_number - 1) for bin_idx in range(vote_number)]
-
-
+@torch.no_grad()
 def compute_vote_intuitor_advantage(
     self_certainties: torch.Tensor,
     response_mask: torch.Tensor,
     index: np.ndarray,
-    vote_number: int = 10,
-    least_vote: int = 8,
-    least_number: int = 6,
-    vote_stride: int = 50,
-    vote_window: int = 100,
+    peer_threshold: float = 0.75,
     epsilon: float = 1e-6,
     norm_adv_by_std_in_grpo: bool = True,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Convert token-level self-certainty into pairwise-voted GRPO advantages.
+    """SIF-Q version A: exact quantile comparison followed by peer voting.
 
-    Eligible responses are ranked from high to low self-certainty and scored with
-    ``vote_number`` windows of ``vote_window`` tokens. The first window is the
-    top 100 tokens; the last window is the lowest 100 tokens. At length 550 the
-    windows overlap with stride 50: ``[0, 100)``, ``[50, 150)``, ...,
-    ``[450, 550)``. Longer responses keep those endpoints and increase the gap
-    between windows so the middle of the ranking is subsampled rather than
-    stretching every bin.
+    A peer is beaten iff D_ij > 0. A valid response receives reward one iff
+    wins / (m - 1) >= peer_threshold, where m is the number of nonempty
+    responses for that prompt. All positive lengths participate, including
+    EOS-only or truncated responses when their tokens are in response_mask.
 
-    Two responses for the same prompt are compared window by window. A response
-    wins the pair when it is strictly higher in at least ``least_vote`` windows,
-    and receives a binary reward when it wins against at least ``least_number``
-    eligible peers.
+    Only nonempty responses enter group statistics. Groups with fewer than
+    two valid responses or uniform binary rewards do not update actor or KL.
+    Nonfinite valid-token certainty is an error, not an implicit loss/tie.
 
-    Responses shorter than 550 tokens (by default) are not comparable, receive
-    reward 0, and are excluded from the actor update.
-
-    A prompt group is active only for its eligible members, and only when those
-    members' binary rewards are not all equal. Inactive rows are masked out of
-    both the policy-gradient and KL losses.
-
-    Returns:
-        advantages: Group-normalized binary rewards broadcast to response tokens.
-        returns: Identical to ``advantages`` for this outcome-only estimator.
-        token_level_rewards: Binary rewards placed on each response's last valid token.
-        rewards: Binary response-level rewards, shape ``(batch_size,)``.
-        win_counts: Number of eligible peer responses beaten by each response.
-        active_group_mask: Per-response indicator that this rollout updates.
-        eligible_mask: Per-response indicator that the rollout is long enough to vote.
+    Returns advantages, returns, token rewards, binary response rewards,
+    peer win counts, active group membership, and nonempty response mask.
+    The legacy function name is retained for the intuitor training entrypoint;
+    no window comparison or response-length filtering remains.
     """
+    peer_threshold = validate_peer_threshold(peer_threshold)
+    if not np.isfinite(epsilon) or epsilon <= 0:
+        raise ValueError("epsilon must be finite and positive")
     if self_certainties.ndim != 2 or response_mask.ndim != 2:
         raise ValueError("self_certainties and response_mask must both be rank-2 tensors")
     if self_certainties.shape != response_mask.shape:
-        raise ValueError(
-            f"self_certainties and response_mask must have the same shape, got "
-            f"{self_certainties.shape} and {response_mask.shape}"
-        )
-    min_length = vote_intuitor_min_length(vote_number, vote_stride, vote_window)
-    if not 1 <= least_vote <= vote_number:
-        raise ValueError(f"least_vote must be in [1, vote_number], got {least_vote}")
-    if least_number <= 0:
-        raise ValueError(f"least_number must be positive, got {least_number}")
+        raise ValueError("self_certainties and response_mask must have the same shape")
     if len(index) != self_certainties.shape[0]:
-        raise ValueError(f"index length {len(index)} does not match batch size {self_certainties.shape[0]}")
-    if self_certainties.shape[1] < min_length:
-        raise ValueError(
-            f"response width {self_certainties.shape[1]} is shorter than the "
-            f"Vote-Intuitor window span {min_length}"
-        )
+        raise ValueError("index length must match batch size")
+    if self_certainties.device != response_mask.device:
+        raise ValueError("self_certainties and response_mask must be on the same device")
 
     device = self_certainties.device
-    batch_size = self_certainties.shape[0]
-    valid_token_mask = response_mask.bool()
-    lengths = valid_token_mask.sum(dim=-1)
-    eligible = lengths >= min_length
-    profiles = torch.zeros((batch_size, vote_number), dtype=torch.float32, device=device)
-
-    with torch.no_grad():
-        certainties = self_certainties.detach().float()
-        for row in torch.nonzero(eligible, as_tuple=False).flatten().tolist():
-            values = torch.sort(certainties[row][valid_token_mask[row]], descending=True).values
-            starts = vote_intuitor_window_starts(int(values.numel()), vote_number, vote_window)
-            for bin_idx, start in enumerate(starts):
-                profiles[row, bin_idx] = values[start : start + vote_window].mean()
-
-        uid_to_rows = defaultdict(list)
-        for row, uid in enumerate(index):
+    batch_size, width = self_certainties.shape
+    # Transfer once, not once per comparison. Preserve the input precision;
+    # converting bf16 to FP32 later cannot recover previously rounded values.
+    mask_cpu = response_mask.detach().to(device="cpu")
+    if not bool(((mask_cpu == 0) | (mask_cpu == 1)).all()):
+        raise ValueError("response_mask must contain only zeros and ones")
+    mask_cpu = mask_cpu.bool()
+    certainties_cpu = self_certainties.detach().to(device="cpu")
+    if not bool(torch.isfinite(certainties_cpu[mask_cpu]).all()):
+        raise ValueError("Valid-token self-certainties must be finite")
+    valid = mask_cpu.any(dim=-1)
+    uid_to_rows = defaultdict(list)
+    for row, uid in enumerate(index):
+        if bool(valid[row]):
             uid_to_rows[uid].append(row)
 
-        rewards = torch.zeros(batch_size, dtype=torch.float32, device=device)
-        win_counts = torch.zeros(batch_size, dtype=torch.long, device=device)
-        active_group_mask = torch.zeros(batch_size, dtype=torch.bool, device=device)
+    rewards = torch.zeros(batch_size, dtype=torch.float32)
+    win_counts = torch.zeros(batch_size, dtype=torch.long)
+    active = torch.zeros(batch_size, dtype=torch.bool)
+    sequence_advantages = torch.zeros(batch_size, dtype=torch.float32)
+    for rows in uid_to_rows.values():
+        if len(rows) < 2:
+            continue
+        profiles = [certainties_cpu[row][mask_cpu[row]].tolist() for row in rows]
+        support = pairwise_quantile_support(profiles)
+        wins = (support > 0).sum(axis=1)
+        group_rewards = torch.from_numpy((wins / (len(rows) - 1) >= peer_threshold).astype(np.float32))
+        win_counts[rows] = torch.from_numpy(wins)
+        rewards[rows] = group_rewards
+        if bool(group_rewards.max() > group_rewards.min()):
+            active[rows] = True
+            centered = group_rewards - group_rewards.mean()
+            if norm_adv_by_std_in_grpo:
+                centered = centered / (group_rewards.std(unbiased=True) + epsilon)
+            sequence_advantages[rows] = centered
 
-        for rows in uid_to_rows.values():
-            row_ids = torch.as_tensor(rows, dtype=torch.long, device=device)
-            group_profiles = profiles[row_ids]
-            group_eligible = eligible[row_ids]
-
-            # Short rollouts are not comparable. Only eligible pairs vote, so a
-            # truncated high-certainty answer cannot beat a full-length trace.
-            pairwise_votes = (group_profiles[:, None, :] > group_profiles[None, :, :]).sum(dim=-1)
-            comparable = group_eligible[:, None] & group_eligible[None, :]
-            pairwise_wins = (pairwise_votes >= least_vote) & comparable
-            pairwise_wins.fill_diagonal_(False)
-
-            group_win_counts = pairwise_wins.sum(dim=-1)
-            group_rewards = torch.zeros_like(group_win_counts, dtype=torch.float32)
-            group_rewards[group_eligible] = (group_win_counts[group_eligible] >= least_number).float()
-            win_counts[row_ids] = group_win_counts
-            rewards[row_ids] = group_rewards
-
-            # Uniform eligible rewards have zero GRPO advantage. Short rows stay
-            # inactive even when the rest of the prompt group updates.
-            if group_eligible.any():
-                eligible_rewards = group_rewards[group_eligible]
-                if bool(eligible_rewards.max() > eligible_rewards.min()):
-                    active_group_mask[row_ids[group_eligible]] = True
-
-        token_level_rewards = torch.zeros_like(self_certainties, dtype=torch.float32)
-        valid_rows = torch.nonzero(lengths > 0, as_tuple=False).squeeze(-1)
-        if valid_rows.numel() > 0:
-            last_token = (lengths[valid_rows] - 1).long()
-            token_level_rewards[valid_rows, last_token] = rewards[valid_rows]
-
-        # Keep short rollouts out of GRPO group statistics so they neither
-        # update nor change the eligible members' mean/std.
-        grpo_index = np.empty(batch_size, dtype=object)
-        for row, uid in enumerate(index):
-            grpo_index[row] = uid if bool(eligible[row]) else f"__vote_short_{row}"
-
-        advantages, returns = compute_grpo_outcome_advantage(
-            token_level_rewards=token_level_rewards,
-            response_mask=response_mask,
-            index=grpo_index,
-            epsilon=epsilon,
-            norm_adv_by_std_in_grpo=norm_adv_by_std_in_grpo,
-        )
-        advantages = advantages * active_group_mask.unsqueeze(-1)
-        returns = returns * active_group_mask.unsqueeze(-1)
-
-    return advantages, returns, token_level_rewards, rewards, win_counts, active_group_mask, eligible
+    rewards = rewards.to(device)
+    win_counts = win_counts.to(device)
+    active = active.to(device)
+    valid = valid.to(device)
+    token_rewards = torch.zeros_like(self_certainties, dtype=torch.float32)
+    if width > 0:
+        # Locate the actual last valid position, including masks with holes.
+        positions = torch.arange(width).expand(batch_size, -1)
+        last_positions = positions.masked_fill(~mask_cpu, -1).max(dim=-1).values.to(device)
+        valid_rows = torch.nonzero(valid, as_tuple=False).flatten()
+        token_rewards[valid_rows, last_positions[valid_rows]] = rewards[valid_rows]
+    advantages = sequence_advantages.to(device).unsqueeze(-1) * response_mask.bool()
+    return advantages, advantages, token_rewards, rewards, win_counts, active, valid
 
 
 @register_adv_est(AdvantageEstimator.GRPO_PASSK)  # or simply: @register_adv_est("grpo_passk")

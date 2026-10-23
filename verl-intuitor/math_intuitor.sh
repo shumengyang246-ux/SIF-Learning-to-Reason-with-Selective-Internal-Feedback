@@ -6,6 +6,7 @@ export HYDRA_FULL_ERROR=1
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=intuitor \
+    algorithm.peer_threshold=0.75 \
     data.train_files=/data/home/zdhs0151/doc/data/Intuitor/math/train.parquet \
     data.val_files=/data/home/zdhs0151/doc/data/Intuitor/math/test.parquet \
     data.train_batch_size=128 \

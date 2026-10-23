@@ -80,11 +80,7 @@ class AlgoConfig(BaseConfig):
         lam (float): Trade-off between bias and variance in the GAE estimator.
         adv_estimator (str): Advantage estimator type: "gae", "grpo", "reinforce_plus_plus", etc.
         norm_adv_by_std_in_grpo (bool): Whether to normalize advantages by std (specific to GRPO).
-        vote_number (int): Number of ranked self-certainty windows per rollout for Vote-Intuitor.
-        vote_stride (int): Minimum token step between windows; used at the 550-token floor.
-        vote_window (int): Token width of each window. First window is the top tokens, last is the lowest.
-        least_vote (int): Minimum winning windows required to beat another rollout.
-        least_number (int): Minimum peer rollouts a rollout must beat to receive reward 1.
+        peer_threshold (float): Minimum fraction of valid peers beaten by exact quantile support.
         use_kl_in_reward (bool): Whether to enable in-reward KL penalty.
         kl_penalty (str): How to estimate KL divergence: "kl", "abs", "mse", "low_var_kl", or "full".
         kl_ctrl (KLControlConfig): KL control configuration.
@@ -97,11 +93,7 @@ class AlgoConfig(BaseConfig):
     lam: float = 1.0
     adv_estimator: str = "gae"
     norm_adv_by_std_in_grpo: bool = True
-    vote_number: int = 10
-    vote_stride: int = 50
-    vote_window: int = 100
-    least_vote: int = 8
-    least_number: int = 6
+    peer_threshold: float = 0.75
     use_kl_in_reward: bool = False
     kl_penalty: str = "kl"
     kl_ctrl: KLControlConfig = field(default_factory=KLControlConfig)

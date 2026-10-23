@@ -137,23 +137,10 @@ algorithm:
   # Whether to normalize advantages by std (specific to GRPO)
   norm_adv_by_std_in_grpo: True
 
-  # Vote-Intuitor: number of ranked self-certainty windows per rollout.
-  vote_number: 10
-
-  # Minimum stride between windows. At length 550 this yields overlap of 50.
-  # Longer rollouts stretch the gap so window 0 stays the top 100 tokens and
-  # window 9 stays the lowest 100 tokens.
-  vote_stride: 50
-
-  # Token width of each window. Defaults yield [0, 100), [50, 150), ..., [450, 550)
-  # on the high-to-low certainty ranking at the minimum eligible length.
-  vote_window: 100
-
-  # A rollout beats a peer when at least this many windows are strictly higher.
-  least_vote: 8
-
-  # A rollout receives reward 1 after beating at least this many eligible peers.
-  least_number: 6
+  # SIF-Q version A: win iff exact quantile net support is positive.
+  # Reward one iff wins / (number of nonempty responses - 1) >= this ratio.
+  # No response-length threshold, windows, or quantile sampling grid.
+  peer_threshold: 0.75
 
   # Whether to enable in-reward KL penalty
   use_kl_in_reward: False

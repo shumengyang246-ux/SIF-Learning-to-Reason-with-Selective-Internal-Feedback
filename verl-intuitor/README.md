@@ -1,3 +1,56 @@
+# SIF-Q: exact quantile comparison with peer voting
+
+The `algorithm.adv_estimator=intuitor` entrypoint now implements SIF-Q version A.
+It replaces the former fixed-window SIF implementation completely.
+
+1. Extract each response's valid-token self-certainties using `response_mask`.
+2. Sort each response once; compare empirical quantile functions over the full
+   unit interval by an exact integer-boundary merge (no quantile sampling grid).
+3. A response beats a peer iff `D_ij = integral sign(Q_i - Q_j) > 0`.
+4. Reward is binary: `wins / (m - 1) >= algorithm.peer_threshold` (default 0.75),
+   where `m` counts nonempty responses in the same prompt group. Tied peers stay
+   in the denominator but give neither response a win.
+5. Center rewards within the valid group and divide by sample standard deviation
+   plus 1e-6 when `algorithm.norm_adv_by_std_in_grpo=True` (the default).
+6. Groups with uniform rewards, or fewer than two nonempty responses, are excluded
+   from both actor and KL losses. A fully inactive training batch skips the actor
+   optimizer update entirely.
+
+There is no response-length eligibility threshold: even one valid token participates.
+EOS-only and truncated responses participate when their tokens are in the response
+mask. Empty responses have no empirical distribution and cannot vote. NaN/Inf in
+valid-token certainty raises an error; padding values are ignored. Generation
+context limits and input-data limits remain normal resource/data settings.
+
+Configuration (also explicit in `math_intuitor.sh` and `math_intuitor_olmo.sh`):
+
+```yaml
+algorithm:
+  adv_estimator: intuitor
+  peer_threshold: 0.75
+  norm_adv_by_std_in_grpo: True
+  use_kl_in_reward: False
+```
+
+Old window/count overrides are no longer supported. The actor/KL mask and existing
+loss aggregation are retained; changing loss aggregation is a separate experiment.
+The self-certainty signal is unchanged (its implementation includes the common
+`log(vocab_size)` offset, which does not affect quantile comparisons). Feedback is
+computed without gradients and external correctness scores remain diagnostics only.
+
+Metrics retain the `vote_intuitor/` prefix. `valid_rollouts` counts nonempty responses;
+`empty_rollouts`, `insufficient_peer_prompt_groups`, and `uniform_reward_prompt_groups`
+replace length-filter counters. Generated and updated response-token counts are
+reported separately. No token is excluded for being below a response-length cutoff.
+
+CPU regression and integration tests:
+
+```bash
+python -m unittest tests.trainer.ppo.test_vote_intuitor_on_cpu -v
+```
+
+---
+
 <div align="center">
  👋 Hi, everyone! 
     verl is a RL training library initiated by <b>ByteDance Seed team</b> and maintained by the verl community.

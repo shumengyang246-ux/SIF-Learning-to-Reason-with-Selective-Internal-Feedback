@@ -283,22 +283,14 @@ def compute_advantage(
     elif adv_estimator == AdvantageEstimator.INTUITOR:
         self_certaintys = data.batch["self_certaintys"]
         grpo_calculation_mask = data.batch["response_mask"]
-        vote_number = int(config.get("vote_number", 10))
-        least_vote = int(config.get("least_vote", 8))
-        least_number = int(config.get("least_number", 6))
-        vote_stride = int(config.get("vote_stride", 50))
-        vote_window = int(config.get("vote_window", 100))
+        peer_threshold = float(config.get("peer_threshold", 0.75))
 
-        advantages, returns, vote_token_rewards, vote_rewards, win_counts, active_group_mask, eligible_mask = (
+        advantages, returns, vote_token_rewards, vote_rewards, win_counts, active_group_mask, valid_mask = (
             core_algos.compute_vote_intuitor_advantage(
                 self_certainties=self_certaintys,
                 response_mask=grpo_calculation_mask,
                 index=data.non_tensor_batch["uid"],
-                vote_number=vote_number,
-                least_vote=least_vote,
-                least_number=least_number,
-                vote_stride=vote_stride,
-                vote_window=vote_window,
+                peer_threshold=peer_threshold,
                 norm_adv_by_std_in_grpo=norm_adv_by_std_in_grpo,
             )
         )
@@ -310,9 +302,9 @@ def compute_advantage(
         data.batch["intuitor_vote_rewards"] = vote_rewards
         data.batch["intuitor_win_counts"] = win_counts
         data.batch["intuitor_group_active"] = active_group_mask
-        data.batch["intuitor_eligible"] = eligible_mask
-        # The actor uses this mask for both policy and KL losses. Short rollouts
-        # and all-zero eligible groups therefore cause no update.
+        data.batch["intuitor_valid"] = valid_mask
+        # The actor uses this mask for both policy and KL losses. Empty responses
+        # and groups with uniform rewards therefore cause no update.
         data.batch["actor_loss_mask"] = grpo_calculation_mask * active_group_mask.unsqueeze(-1)
     else:
         # handle all other adv estimator type other than GAE and GRPO
@@ -335,47 +327,49 @@ def compute_advantage(
 
 
 def compute_vote_intuitor_metrics(data: DataProto) -> dict[str, float]:
-    """Build per-step counters for Vote-Intuitor's binary update decision."""
+    """Counters for SIF-Q peer voting and group-level update selection."""
     rewards = data.batch["intuitor_vote_rewards"]
     win_counts = data.batch["intuitor_win_counts"]
     group_active = data.batch["intuitor_group_active"].bool()
-    eligible = data.batch["intuitor_eligible"].bool()
-    uids = data.non_tensor_batch["uid"]
-
+    valid = data.batch["intuitor_valid"].bool()
     uid_to_rows = defaultdict(list)
-    for row, uid in enumerate(uids):
+    for row, uid in enumerate(data.non_tensor_batch["uid"]):
         uid_to_rows[uid].append(row)
 
-    total_groups = len(uid_to_rows)
-    updated_groups = 0
-    all_zero_groups = 0
-    too_short_groups = 0
+    updated_groups = all_zero_groups = insufficient_groups = uniform_groups = 0
     for rows in uid_to_rows.values():
-        row_ids = torch.as_tensor(rows, dtype=torch.long, device=rewards.device)
-        updated_groups += int(group_active[row_ids].any().item())
-        all_zero_groups += int((rewards[row_ids] == 0).all().item())
-        too_short_groups += int((~eligible[row_ids]).all().item())
-
+        group_valid = valid[rows]
+        group_rewards = rewards[rows][group_valid]
+        updated_groups += int(group_active[rows].any().item())
+        insufficient_groups += int(group_rewards.numel() < 2)
+        all_zero_groups += int(group_rewards.numel() >= 2 and (group_rewards == 0).all().item())
+        uniform_groups += int(
+            group_rewards.numel() >= 2 and (group_rewards.max() == group_rewards.min()).item()
+        )
+    total_groups = len(uid_to_rows)
     total_rollouts = rewards.numel()
     updated_rollouts = int(group_active.sum().item())
     rewarded_rollouts = int((rewards > 0).sum().item())
-    eligible_rollouts = int(eligible.sum().item())
-    too_short_rollouts = total_rollouts - eligible_rollouts
+    valid_rollouts = int(valid.sum().item())
+    response_mask = data.batch["response_mask"].bool()
     return {
         "vote_intuitor/total_rollouts": float(total_rollouts),
         "vote_intuitor/rewarded_rollouts": float(rewarded_rollouts),
         "vote_intuitor/rewarded_rollout_ratio": rewarded_rollouts / max(total_rollouts, 1),
         "vote_intuitor/updated_rollouts": float(updated_rollouts),
         "vote_intuitor/updated_rollout_ratio": updated_rollouts / max(total_rollouts, 1),
-        "vote_intuitor/eligible_rollouts": float(eligible_rollouts),
-        "vote_intuitor/too_short_rollouts": float(too_short_rollouts),
-        "vote_intuitor/too_short_rollout_ratio": too_short_rollouts / max(total_rollouts, 1),
+        "vote_intuitor/valid_rollouts": float(valid_rollouts),
+        "vote_intuitor/empty_rollouts": float(total_rollouts - valid_rollouts),
         "vote_intuitor/total_prompt_groups": float(total_groups),
         "vote_intuitor/updated_prompt_groups": float(updated_groups),
         "vote_intuitor/updated_prompt_group_ratio": updated_groups / max(total_groups, 1),
         "vote_intuitor/all_zero_prompt_groups": float(all_zero_groups),
-        "vote_intuitor/too_short_prompt_groups": float(too_short_groups),
-        "vote_intuitor/mean_pairwise_wins": float(win_counts.float().mean().item()),
+        "vote_intuitor/uniform_reward_prompt_groups": float(uniform_groups),
+        "vote_intuitor/insufficient_peer_prompt_groups": float(insufficient_groups),
+        "vote_intuitor/mean_pairwise_wins": float(win_counts.float().mean().item()) if total_rollouts else 0.0,
+        "vote_intuitor/generated_response_tokens": float(response_mask.sum().item()),
+        "vote_intuitor/updated_response_tokens": float(data.batch["actor_loss_mask"].sum().item()),
+        "vote_intuitor/nonzero_advantage_tokens": float((data.batch["advantages"] != 0).sum().item()),
         "vote_intuitor/optimizer_step_skipped": float(updated_groups == 0),
     }
 
@@ -478,29 +472,9 @@ class RayPPOTrainer:
     def _validate_config(self):
         config = self.config
         if config.algorithm.adv_estimator == AdvantageEstimator.INTUITOR:
-            vote_number = int(config.algorithm.get("vote_number", 10))
-            least_vote = int(config.algorithm.get("least_vote", 8))
-            least_number = int(config.algorithm.get("least_number", 6))
-            vote_stride = int(config.algorithm.get("vote_stride", 50))
-            vote_window = int(config.algorithm.get("vote_window", 100))
-            rollout_number = int(config.actor_rollout_ref.rollout.n)
-            max_response_length = int(config.data.max_response_length)
-            min_length = core_algos.vote_intuitor_min_length(vote_number, vote_stride, vote_window)
-            if not 1 <= least_vote <= vote_number:
-                raise ValueError(
-                    f"algorithm.least_vote must be in [1, vote_number], got {least_vote}"
-                )
-            if not 1 <= least_number < rollout_number:
-                raise ValueError(
-                    f"algorithm.least_number must be in [1, rollout.n - 1], got "
-                    f"least_number={least_number}, rollout.n={rollout_number}"
-                )
-            if max_response_length < min_length:
-                raise ValueError(
-                    f"data.max_response_length={max_response_length} is shorter than the "
-                    f"Vote-Intuitor window span {min_length} "
-                    f"(vote_number={vote_number}, vote_stride={vote_stride}, vote_window={vote_window})"
-                )
+            core_algos.validate_peer_threshold(config.algorithm.get("peer_threshold", 0.75))
+            if int(config.actor_rollout_ref.rollout.n) < 2:
+                raise ValueError("SIF-Q peer voting requires rollout.n >= 2")
 
         # number of GPUs total
         n_gpus = config.trainer.n_gpus_per_node * config.trainer.nnodes
@@ -1554,7 +1528,7 @@ class RayPPOTrainer:
                                 f"updated_rollouts={int(vote_metrics['vote_intuitor/updated_rollouts'])}/"
                                 f"{int(vote_metrics['vote_intuitor/total_rollouts'])}, "
                                 f"rewarded_rollouts={int(vote_metrics['vote_intuitor/rewarded_rollouts'])}, "
-                                f"too_short={int(vote_metrics['vote_intuitor/too_short_rollouts'])}"
+                                f"empty={int(vote_metrics['vote_intuitor/empty_rollouts'])}"
                             )
 
                     # update critic
@@ -1573,10 +1547,10 @@ class RayPPOTrainer:
                         if skip_actor_update:
                             # A zero-gradient optimizer step can still change
                             # parameters through Adam momentum or weight decay.
-                            # Skip it entirely when no prompt group has a vote winner.
+                            # Skip it entirely when no prompt group has nonuniform peer rewards.
                             print(
                                 f"[vote-intuitor] step={self.global_steps}: "
-                                "all rollout rewards are zero; skipping actor update"
+                                "no active peer-voting groups; skipping actor update"
                             )
                         else:
                             # update actor
