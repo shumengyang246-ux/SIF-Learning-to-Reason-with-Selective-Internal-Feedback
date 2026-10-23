@@ -1,0 +1,277 @@
+/bin/bash: /data/apps/apps/Miniconda3/latest/lib/libtinfo.so.6: no version information available (required by /bin/bash)
++ INTUITOR_ROOT=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final
++ [[ ! -d /data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/verl-intuitor ]]
++ ENV_DIR=/data/home/zdhs0151/work/envs/intuitor_train
++ VERL_ROOT=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/verl-intuitor
+++ conda info --base
++ source /data/apps/apps/Miniconda3/latest/etc/profile.d/conda.sh
+++ export CONDA_EXE=/data/apps/apps/Miniconda3/latest/bin/conda
+++ CONDA_EXE=/data/apps/apps/Miniconda3/latest/bin/conda
+++ export _CONDA_EXE=/data/apps/apps/Miniconda3/latest/bin/conda
+++ _CONDA_EXE=/data/apps/apps/Miniconda3/latest/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/data/apps/apps/Miniconda3/latest/bin/python
+++ CONDA_PYTHON_EXE=/data/apps/apps/Miniconda3/latest/bin/python
+++ export _CONDA_ROOT=/data/apps/apps/Miniconda3/latest
+++ _CONDA_ROOT=/data/apps/apps/Miniconda3/latest
+++ '[' -z x ']'
++ conda activate /data/home/zdhs0151/work/envs/intuitor_train
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate /data/home/zdhs0151/work/envs/intuitor_train
++ '[' -n '' ']'
++ local ask_conda
+++ PS1=
+++ __conda_exe shell.posix activate /data/home/zdhs0151/work/envs/intuitor_train
+++ '[' -n '' ']'
+++ /data/apps/apps/Miniconda3/latest/bin/conda shell.posix activate /data/home/zdhs0151/work/envs/intuitor_train
++ ask_conda='export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+PS1='\''(intuitor_train) '\''
+export PATH='\''/data/home/zdhs0151/.vscode-server/bin/a44adf7f53e00964ab890f9f8758a334f1fc15bc/bin/remote-cli:/data/home/zdhs0151/.local/bin:/data/home/zdhs0151/bin:/data/home/zdhs0151/work/envs/intuitor_train/bin:/data/apps/apps/Miniconda3/latest/condabin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/src/ssh/bin:/snap/bin'\''
+export CONDA_PREFIX='\''/data/home/zdhs0151/work/envs/intuitor_train'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''intuitor_train'\''
+export CONDA_PROMPT_MODIFIER='\''(intuitor_train) '\''
+export CONDA_PREFIX_1='\''/data/apps/apps/Miniconda3/latest'\''
+export CONDA_EXE='\''/data/apps/apps/Miniconda3/latest/bin/conda'\''
+export _CONDA_EXE='\''/data/apps/apps/Miniconda3/latest/bin/conda'\''
+export CONDA_PYTHON_EXE='\''/data/apps/apps/Miniconda3/latest/bin/python'\''
+export _CONDA_ROOT='\''/data/apps/apps/Miniconda3/latest'\'''
++ eval 'export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+PS1='\''(intuitor_train) '\''
+export PATH='\''/data/home/zdhs0151/.vscode-server/bin/a44adf7f53e00964ab890f9f8758a334f1fc15bc/bin/remote-cli:/data/home/zdhs0151/.local/bin:/data/home/zdhs0151/bin:/data/home/zdhs0151/work/envs/intuitor_train/bin:/data/apps/apps/Miniconda3/latest/condabin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/src/ssh/bin:/snap/bin'\''
+export CONDA_PREFIX='\''/data/home/zdhs0151/work/envs/intuitor_train'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''intuitor_train'\''
+export CONDA_PROMPT_MODIFIER='\''(intuitor_train) '\''
+export CONDA_PREFIX_1='\''/data/apps/apps/Miniconda3/latest'\''
+export CONDA_EXE='\''/data/apps/apps/Miniconda3/latest/bin/conda'\''
+export _CONDA_EXE='\''/data/apps/apps/Miniconda3/latest/bin/conda'\''
+export CONDA_PYTHON_EXE='\''/data/apps/apps/Miniconda3/latest/bin/python'\''
+export _CONDA_ROOT='\''/data/apps/apps/Miniconda3/latest'\'''
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ PS1='(intuitor_train) '
+++ export PATH=/data/home/zdhs0151/.vscode-server/bin/a44adf7f53e00964ab890f9f8758a334f1fc15bc/bin/remote-cli:/data/home/zdhs0151/.local/bin:/data/home/zdhs0151/bin:/data/home/zdhs0151/work/envs/intuitor_train/bin:/data/apps/apps/Miniconda3/latest/condabin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/src/ssh/bin:/snap/bin
+++ PATH=/data/home/zdhs0151/.vscode-server/bin/a44adf7f53e00964ab890f9f8758a334f1fc15bc/bin/remote-cli:/data/home/zdhs0151/.local/bin:/data/home/zdhs0151/bin:/data/home/zdhs0151/work/envs/intuitor_train/bin:/data/apps/apps/Miniconda3/latest/condabin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/src/ssh/bin:/snap/bin
+++ export CONDA_PREFIX=/data/home/zdhs0151/work/envs/intuitor_train
+++ CONDA_PREFIX=/data/home/zdhs0151/work/envs/intuitor_train
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=intuitor_train
+++ CONDA_DEFAULT_ENV=intuitor_train
+++ export 'CONDA_PROMPT_MODIFIER=(intuitor_train) '
+++ CONDA_PROMPT_MODIFIER='(intuitor_train) '
+++ export CONDA_PREFIX_1=/data/apps/apps/Miniconda3/latest
+++ CONDA_PREFIX_1=/data/apps/apps/Miniconda3/latest
+++ export CONDA_EXE=/data/apps/apps/Miniconda3/latest/bin/conda
+++ CONDA_EXE=/data/apps/apps/Miniconda3/latest/bin/conda
+++ export _CONDA_EXE=/data/apps/apps/Miniconda3/latest/bin/conda
+++ _CONDA_EXE=/data/apps/apps/Miniconda3/latest/bin/conda
+++ export CONDA_PYTHON_EXE=/data/apps/apps/Miniconda3/latest/bin/python
+++ CONDA_PYTHON_EXE=/data/apps/apps/Miniconda3/latest/bin/python
+++ export _CONDA_ROOT=/data/apps/apps/Miniconda3/latest
+++ _CONDA_ROOT=/data/apps/apps/Miniconda3/latest
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/verl-intuitor
++ export PYTHONPATH=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/verl-intuitor
++ PYTHONPATH=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/verl-intuitor
++ unset ROCR_VISIBLE_DEVICES HIP_VISIBLE_DEVICES
++ unset MY_HOST_IP RAY_NODE_IP_ADDRESS
+++ _detect_host_ip
+++ local ifc ip_addr
+++ for ifc in "${NCCL_SOCKET_IFNAME:-}" bond4 eth0
+++ [[ -z '' ]]
+++ continue
+++ for ifc in "${NCCL_SOCKET_IFNAME:-}" bond4 eth0
+++ [[ -z bond4 ]]
++++ ip -4 addr show bond4
++++ awk '/inet / {print $2}'
++++ cut -d/ -f1
++++ head -1
+++ ip_addr=10.36.116.41
+++ [[ -n 10.36.116.41 ]]
+++ echo 10.36.116.41
+++ return 0
++ HOST_IP=10.36.116.41
++ [[ -z 10.36.116.41 ]]
++ [[ -z '' ]]
++ ip link show bond4
++ NCCL_SOCKET_IFNAME=bond4
++ export RAY_NODE_IP_ADDRESS=10.36.116.41
++ RAY_NODE_IP_ADDRESS=10.36.116.41
++ export MY_HOST_IP=10.36.116.41
++ MY_HOST_IP=10.36.116.41
++ export NCCL_SOCKET_IFNAME
++ export GLOO_SOCKET_IFNAME=bond4
++ GLOO_SOCKET_IFNAME=bond4
++ export NCCL_P2P_DISABLE=1
++ NCCL_P2P_DISABLE=1
++ export NCCL_CUMEM_ENABLE=0
++ NCCL_CUMEM_ENABLE=0
++ echo '[info] ray_node_ip=10.36.116.41 nccl_if=bond4 nccl_p2p_disable=1'
++ export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
++ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
++ export VERL_VLLM_DISTRIBUTED_BACKEND=ray
++ VERL_VLLM_DISTRIBUTED_BACKEND=ray
++ unset RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES
++ export NCCL_IB_DISABLE=1
++ NCCL_IB_DISABLE=1
++ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
++ TORCH_NCCL_ASYNC_ERROR_HANDLING=1
++ export CUDA_DEVICE_MAX_CONNECTIONS=1
++ CUDA_DEVICE_MAX_CONNECTIONS=1
++ unset PYTORCH_CUDA_ALLOC_CONF
++ export HYDRA_FULL_ERROR=1
++ HYDRA_FULL_ERROR=1
++ export ACCELERATE_LOG_LEVEL=info
++ ACCELERATE_LOG_LEVEL=info
++ export TORCH_COMPILE_DISABLE=1
++ TORCH_COMPILE_DISABLE=1
++ export TORCHINDUCTOR_DISABLE=1
++ TORCHINDUCTOR_DISABLE=1
++ export TRITON_CACHE_DIR=/tmp/triton_cache_local_888000
++ TRITON_CACHE_DIR=/tmp/triton_cache_local_888000
++ mkdir -p /tmp/triton_cache_local_888000
++ export VLLM_USE_V1=0
++ VLLM_USE_V1=0
++ export VLLM_ATTENTION_BACKEND=FLASH_ATTN
++ VLLM_ATTENTION_BACKEND=FLASH_ATTN
++ export MODEL_PATH=/data/home/zdhs0151/doc/model/Qwen3-1.7B
++ MODEL_PATH=/data/home/zdhs0151/doc/model/Qwen3-1.7B
++ export MATH_DATA_DIR=/data/home/zdhs0151/doc/data/Intuitor/math
++ MATH_DATA_DIR=/data/home/zdhs0151/doc/data/Intuitor/math
++ export TRAIN_FILES=/data/home/zdhs0151/doc/data/Intuitor/math/train.parquet
++ TRAIN_FILES=/data/home/zdhs0151/doc/data/Intuitor/math/train.parquet
++ export VAL_FILES=/data/home/zdhs0151/doc/data/Intuitor/math/test.parquet
++ VAL_FILES=/data/home/zdhs0151/doc/data/Intuitor/math/test.parquet
++ export CHECKPOINT_ROOT=/data/home/zdhs0151/home_2026_9/9_4/checkpoint_Vote_Intuitor_Final
++ CHECKPOINT_ROOT=/data/home/zdhs0151/home_2026_9/9_4/checkpoint_Vote_Intuitor_Final
++ export PROJECT_NAME=verl
++ PROJECT_NAME=verl
++ export EXPERIMENT_NAME=math_vote_intuitor_qwen3_1_7b
++ EXPERIMENT_NAME=math_vote_intuitor_qwen3_1_7b
++ export TRAINING_SEED=123
++ TRAINING_SEED=123
++ [[ ! 123 =~ ^[0-9]+$ ]]
++ ((  10#123 > 4294967295  ))
++ export PYTHONHASHSEED=123
++ PYTHONHASHSEED=123
++ [[ -z '' ]]
++ [[ -n 30228 ]]
++ DEFAULT_LOCAL_DIR=/data/home/zdhs0151/home_2026_9/9_4/checkpoint_Vote_Intuitor_Final/math_vote_intuitor_qwen3_1_7b_seed123_30228
++ export DEFAULT_LOCAL_DIR
++ TRAIN_LOG_DIR=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log
++ [[ -n 30228 ]]
++ JOB_LOG_DIR=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228
++ mkdir -p /data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228 /data/home/zdhs0151/home_2026_9/9_4/checkpoint_Vote_Intuitor_Final /data/home/zdhs0151/home_2026_9/9_4/checkpoint_Vote_Intuitor_Final/math_vote_intuitor_qwen3_1_7b_seed123_30228
++ [[ -n 30228 ]]
++ _job_stem=vote-intuitor-30228
++ _slurm_stem=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228
++ [[ -f /data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228.out ]]
++ mv -f /data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228.out /data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228/vote-intuitor-30228.out
++ [[ -f /data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228.err ]]
++ mv -f /data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228.err /data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228/vote-intuitor-30228.err
++ [[ -z '' ]]
++ [[ -n 30228 ]]
++ export TRAIN_LOG=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228/vote-intuitor-30228.log
++ TRAIN_LOG=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228/vote-intuitor-30228.log
++ [[ ! -d /data/home/zdhs0151/doc/model/Qwen3-1.7B ]]
++ [[ ! -f /data/home/zdhs0151/doc/data/Intuitor/math/train.parquet ]]
++ [[ ! -f /data/home/zdhs0151/doc/data/Intuitor/math/test.parquet ]]
++ export TRAIN_BATCH_SIZE=64
++ TRAIN_BATCH_SIZE=64
++ export PPO_MINI_BATCH_SIZE=64
++ PPO_MINI_BATCH_SIZE=64
++ export PPO_MICRO_BATCH_SIZE=4
++ PPO_MICRO_BATCH_SIZE=4
++ export MAX_PROMPT_LENGTH=512
++ MAX_PROMPT_LENGTH=512
++ export MAX_RESPONSE_LENGTH=3072
++ MAX_RESPONSE_LENGTH=3072
++ export ROLLOUT_N=8
++ ROLLOUT_N=8
++ export ROLLOUT_TP=1
++ ROLLOUT_TP=1
++ export VOTE_NUMBER=10
++ VOTE_NUMBER=10
++ export VOTE_STRIDE=50
++ VOTE_STRIDE=50
++ export VOTE_WINDOW=100
++ VOTE_WINDOW=100
++ export LEAST_VOTE=8
++ LEAST_VOTE=8
++ export LEAST_NUMBER=6
++ LEAST_NUMBER=6
++ export GPU_MEMORY_UTIL=0.6
++ GPU_MEMORY_UTIL=0.6
++ export LEARNING_RATE=3e-6
++ LEARNING_RATE=3e-6
++ export KL_LOSS_COEF=0.005
++ KL_LOSS_COEF=0.005
++ export TOTAL_EPOCHS=1
++ TOTAL_EPOCHS=1
++ export SAVE_FREQ=10
++ SAVE_FREQ=10
++ export TEST_FREQ=10
++ TEST_FREQ=10
++ export VAL_BEFORE_TRAIN=False
++ VAL_BEFORE_TRAIN=False
++ export ENABLE_WANDB=0
++ ENABLE_WANDB=0
++ export SAVE_MODE=best_and_latest
++ SAVE_MODE=best_and_latest
++ export BEST_CKPT_METRIC=
++ BEST_CKPT_METRIC=
++ export RESUME_MODE=auto
++ RESUME_MODE=auto
++ export RETRAIN=1
++ RETRAIN=1
++ export RAY_NUM_CPUS=64
++ RAY_NUM_CPUS=64
++ IFS=,
++ read -r -a __gpu_list
++ NUM_GPUS=8
++ ((  TRAIN_BATCH_SIZE * ROLLOUT_N % NUM_GPUS != 0  ))
++ ((  PPO_MINI_BATCH_SIZE > TRAIN_BATCH_SIZE  ))
++ [[ 0 == \1 ]]
++ LOGGER_CFG='["console"]'
++ unset WANDB_API_KEY
++ BEST_CKPT_METRIC_ARG=null
++ [[ -n '' ]]
++ [[ 1 == \1 ]]
++ RESUME_MODE=disable
++ export RESUME_MODE
++ echo '[info] env=/data/home/zdhs0151/work/envs/intuitor_train'
++ echo '[info] verl_root=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/verl-intuitor'
++ echo '[info] model=/data/home/zdhs0151/doc/model/Qwen3-1.7B'
++ echo '[info] train_files=/data/home/zdhs0151/doc/data/Intuitor/math/train.parquet'
++ echo '[info] val_files=/data/home/zdhs0151/doc/data/Intuitor/math/test.parquet'
++ echo '[info] checkpoint_dir=/data/home/zdhs0151/home_2026_9/9_4/checkpoint_Vote_Intuitor_Final/math_vote_intuitor_qwen3_1_7b_seed123_30228 save_mode=best_and_latest save_freq=10 test_freq=10'
++ echo '[info] experiment=math_vote_intuitor_qwen3_1_7b'
++ echo '[info] resume_mode=disable retrain=1 epochs=1'
++ echo '[info] gpus=8 cuda_visible=0,1,2,3,4,5,6,7 batch=64 n=8 tp=1'
++ echo '[info] training_seed=123 pythonhashseed=123'
++ echo '[info] vote_number=10 vote_stride=50 vote_window=100 least_vote=8 least_number=6'
++ echo '[info] train_log=/data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228/vote-intuitor-30228.log'
++ unset RAY_ADDRESS RAY_DASHBOARD_ADDRESS RAY_NAMESPACE RAY_RUNTIME_ENV
++ export RAY_ADDRESS=
++ RAY_ADDRESS=
++ export RAY_DASHBOARD_ADDRESS=
++ RAY_DASHBOARD_ADDRESS=
++ export RAY_ENABLE_DASHBOARD=0
++ RAY_ENABLE_DASHBOARD=0
++ ray stop --force
++ tee /data/home/zdhs0151/home_2026_9/9_4/Vote_Intuitor_Final/training_log/vote-intuitor-30228/vote-intuitor-30228.log
++ PYTHONUNBUFFERED=1
++ python3 -m verl.trainer.main_ppo algorithm.adv_estimator=intuitor algorithm.vote_number=10 algorithm.vote_stride=50 algorithm.vote_window=100 algorithm.least_vote=8 algorithm.least_number=6 data.train_files=/data/home/zdhs0151/doc/data/Intuitor/math/train.parquet data.val_files=/data/home/zdhs0151/doc/data/Intuitor/math/test.parquet data.seed=123 data.train_batch_size=64 data.max_prompt_length=512 data.max_response_length=3072 data.filter_overlong_prompts=True data.truncation=error actor_rollout_ref.model.path=/data/home/zdhs0151/doc/model/Qwen3-1.7B actor_rollout_ref.model.use_fused_kernels=False actor_rollout_ref.actor.optim.lr=3e-6 actor_rollout_ref.actor.optim.warmup_style=cosine actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.1 actor_rollout_ref.model.use_remove_padding=True actor_rollout_ref.actor.ppo_mini_batch_size=64 actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0.005 actor_rollout_ref.actor.kl_loss_type=low_var_kl actor_rollout_ref.actor.entropy_coeff=0 actor_rollout_ref.actor.use_torch_compile=False actor_rollout_ref.model.enable_gradient_checkpointing=True actor_rollout_ref.actor.fsdp_config.param_offload=False actor_rollout_ref.actor.fsdp_config.optimizer_offload=False actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 actor_rollout_ref.rollout.name=vllm actor_rollout_ref.rollout.seed=123 actor_rollout_ref.rollout.tensor_model_parallel_size=1 actor_rollout_ref.rollout.gpu_memory_utilization=0.6 actor_rollout_ref.rollout.enforce_eager=True actor_rollout_ref.rollout.n=8 actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=4 actor_rollout_ref.ref.fsdp_config.param_offload=True algorithm.use_kl_in_reward=False trainer.critic_warmup=0 trainer.val_before_train=False trainer.n_gpus_per_node=8 trainer.nnodes=1 'trainer.logger=["console"]' trainer.project_name=verl trainer.experiment_name=math_vote_intuitor_qwen3_1_7b trainer.default_local_dir=/data/home/zdhs0151/home_2026_9/9_4/checkpoint_Vote_Intuitor_Final/math_vote_intuitor_qwen3_1_7b_seed123_30228 trainer.resume_mode=disable trainer.save_freq=10 trainer.save_mode=best_and_latest trainer.best_ckpt_metric=null trainer.test_freq=10 trainer.total_epochs=1 ray_init.num_cpus=64
