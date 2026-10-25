@@ -29,7 +29,11 @@ import torch
 
 import verl.utils.torch_functional as verl_F
 from verl.trainer.config import AlgoConfig
-from verl.trainer.ppo.quantile_feedback import pairwise_quantile_support, validate_peer_threshold
+from verl.trainer.ppo.quantile_feedback import (
+    pairwise_quantile_support,
+    validate_peer_threshold,
+    validate_use_direct_adv,
+)
 
 POLICY_LOSS_REGISTRY = {}
 
@@ -318,8 +322,9 @@ def compute_vote_intuitor_advantage(
     peer_threshold: float = 0.75,
     epsilon: float = 1e-6,
     norm_adv_by_std_in_grpo: bool = True,
+    use_direct_adv: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """SIF-Q version A: exact quantile comparison followed by peer voting.
+    """SIF-Q version A (default) or version B with direct net-support advantages.
 
     A peer is beaten iff D_ij > 0. A valid response receives reward one iff
     wins / (m - 1) >= peer_threshold, where m is the number of nonempty
@@ -334,10 +339,18 @@ def compute_vote_intuitor_advantage(
     peer win counts, active group membership, and nonempty response mask.
     The legacy function name is retained for the intuitor training entrypoint;
     no window comparison or response-length filtering remains.
+
+    With use_direct_adv=True, average signed D_ij over the other nonempty
+    peers directly: no voting threshold, centering, or std normalization.
+    All-zero advantage groups are inactive. Returned response/token rewards
+    then contain the signed direct advantages for diagnostics; win counts are
+    diagnostic only and never affect version B's update.
     """
-    peer_threshold = validate_peer_threshold(peer_threshold)
-    if not np.isfinite(epsilon) or epsilon <= 0:
-        raise ValueError("epsilon must be finite and positive")
+    use_direct_adv = validate_use_direct_adv(use_direct_adv)
+    if not use_direct_adv:
+        peer_threshold = validate_peer_threshold(peer_threshold)
+        if not np.isfinite(epsilon) or epsilon <= 0:
+            raise ValueError("epsilon must be finite and positive")
     if self_certainties.ndim != 2 or response_mask.ndim != 2:
         raise ValueError("self_certainties and response_mask must both be rank-2 tensors")
     if self_certainties.shape != response_mask.shape:
@@ -372,10 +385,21 @@ def compute_vote_intuitor_advantage(
         if len(rows) < 2:
             continue
         profiles = [certainties_cpu[row][mask_cpu[row]].tolist() for row in rows]
-        support = pairwise_quantile_support(profiles)
+        support = pairwise_quantile_support(profiles, exact=use_direct_adv)
         wins = (support > 0).sum(axis=1)
-        group_rewards = torch.from_numpy((wins / (len(rows) - 1) >= peer_threshold).astype(np.float32))
         win_counts[rows] = torch.from_numpy(wins)
+        if use_direct_adv:
+            # Sum exact rational supports before casting to the policy dtype.
+            # No epsilon/tolerance gate: a true preference-cycle cancellation
+            # must not activate a group through floating-point roundoff.
+            group_advantages = torch.tensor(
+                [float(total / (len(rows) - 1)) for total in support.sum(axis=1)], dtype=torch.float32
+            )
+            rewards[rows] = group_advantages
+            sequence_advantages[rows] = group_advantages
+            active[rows] = bool((group_advantages != 0).any())
+            continue
+        group_rewards = torch.from_numpy((wins / (len(rows) - 1) >= peer_threshold).astype(np.float32))
         rewards[rows] = group_rewards
         if bool(group_rewards.max() > group_rewards.min()):
             active[rows] = True

@@ -11,7 +11,7 @@
 #SBATCH --output=/data/home/zdhs0108/ysm/acl2027/SIF/training_log/sif_acl_qwen2.5_math_1.5b_log/%x-%j.out
 #SBATCH --error=/data/home/zdhs0108/ysm/acl2027/SIF/training_log/sif_acl_qwen2.5_math_1.5b_log/%x-%j.err
 
-# SIF-Q version A (GRPO): Qwen2.5-Math-1.5B, exact quantile support + peer voting.
+# SIF-Q (GRPO, version A by default; USE_DIRECT_ADV=true enables B): Qwen2.5-Math-1.5B, exact quantile support + peer voting.
 # Existing allocation: srun --jobid=44777 --overlap -N1 -n1 -c64 --gres=gpu:8 bash running/train_sif_qwen25_math_1_5b.sh
 set -euo pipefail
 set -x
@@ -136,6 +136,7 @@ export MAX_PROMPT_LENGTH="${MAX_PROMPT_LENGTH:-512}"
 export MAX_RESPONSE_LENGTH="${MAX_RESPONSE_LENGTH:-3072}"
 export ROLLOUT_N="${ROLLOUT_N:-8}"
 export ROLLOUT_TP="${ROLLOUT_TP:-1}"
+export USE_DIRECT_ADV="${USE_DIRECT_ADV:-false}"
 export PEER_THRESHOLD="${PEER_THRESHOLD:-0.75}"
 export GPU_MEMORY_UTIL="${GPU_MEMORY_UTIL:-0.6}"
 export LEARNING_RATE="${LEARNING_RATE:-3e-6}"
@@ -186,7 +187,7 @@ echo "[info] experiment=${EXPERIMENT_NAME}"
 echo "[info] resume_mode=${RESUME_MODE} retrain=${RETRAIN} epochs=${TOTAL_EPOCHS}"
 echo "[info] gpus=${NUM_GPUS} cuda_visible=${CUDA_VISIBLE_DEVICES} batch=${TRAIN_BATCH_SIZE} n=${ROLLOUT_N} tp=${ROLLOUT_TP}"
 echo "[info] training_seed=${TRAINING_SEED} pythonhashseed=${PYTHONHASHSEED}"
-echo "[info] SIF-Q exact quantiles; peer_threshold=${PEER_THRESHOLD}; no response-length filtering"
+echo "[info] SIF-Q exact quantiles; use_direct_adv=${USE_DIRECT_ADV}; peer_threshold(A only)=${PEER_THRESHOLD}; no response-length filtering"
 echo "[info] train_log=${TRAIN_LOG}"
 
 unset RAY_ADDRESS RAY_DASHBOARD_ADDRESS RAY_NAMESPACE RAY_RUNTIME_ENV
@@ -197,6 +198,7 @@ export RAY_ENABLE_DASHBOARD=0
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=intuitor \
+    algorithm.use_direct_adv="${USE_DIRECT_ADV}" \
     algorithm.peer_threshold="${PEER_THRESHOLD}" \
     data.train_files="${TRAIN_FILES}" \
     data.val_files="${VAL_FILES}" \

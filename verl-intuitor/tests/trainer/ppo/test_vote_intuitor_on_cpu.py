@@ -4,6 +4,7 @@
 import math
 import unittest
 from fractions import Fraction
+from unittest.mock import patch
 
 import numpy as np
 import torch
@@ -174,7 +175,171 @@ class TestQuantilePeerVoting(unittest.TestCase):
             torch.testing.assert_close(expected, actual.cpu())
 
 
+class TestDirectQuantileAdvantage(unittest.TestCase):
+    def test_document_B_no_std_normalization_and_stopped_gradient(self):
+        profiles = [[10, 6, 4, 2], [9, 9, 7, 7, 3, 3, 1, 1], [8, 8, 5, 5, 2, 2, 0, 0]]
+        values, mask = pack(profiles)
+        values.requires_grad_(True)
+        result = compute_vote_intuitor_advantage(values, mask, np.array([0, 0, 0]), use_direct_adv=True)
+        adv, returns, tokens, scores, _, active, valid = result
+        expected = torch.tensor([0.75, 0.25, -1.0])
+        torch.testing.assert_close(scores, expected)
+        torch.testing.assert_close(adv, expected[:, None] * mask)
+        torch.testing.assert_close(returns, adv)
+        torch.testing.assert_close(tokens.sum(-1), scores)
+        self.assertTrue(active.all() and valid.all())
+        self.assertFalse(adv.requires_grad)
+        self.assertFalse(scores.requires_grad)
+        for normalize in (True, False):
+            # A-only settings must not even validate/gate version B.
+            other = feedback(
+                profiles,
+                use_direct_adv=True,
+                peer_threshold=None,
+                epsilon=float("nan"),
+                norm_adv_by_std_in_grpo=normalize,
+            )
+            for actual, expected_tensor in zip(other, result):
+                torch.testing.assert_close(actual, expected_tensor)
+
+    def test_default_false_preserves_A(self):
+        profiles = [[9, 3], [8, 6, 1], [1], [], [5], [5]]
+        uids = ["a"] * 4 + ["b"] * 2
+        for normalize in (True, False):
+            original = feedback(profiles, uids, norm_adv_by_std_in_grpo=normalize)
+            explicit = feedback(profiles, uids, use_direct_adv=False, norm_adv_by_std_in_grpo=normalize)
+            for expected, actual in zip(original, explicit):
+                torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+    def test_bool_switch_rejects_truthy_strings_and_numbers(self):
+        for value in ("false", "true", 0, 1, None):
+            with self.subTest(value=value), self.assertRaisesRegex(TypeError, "bool"):
+                feedback([[2], [1]], use_direct_adv=value)
+
+    def test_no_length_cutoff_and_zero_individual_in_active_group(self):
+        adv, _, tokens, scores, _, active, valid = feedback([[3], [2] * 549, [1] * 600, []], use_direct_adv=True)
+        torch.testing.assert_close(scores, torch.tensor([1.0, 0.0, -1.0, 0.0]))
+        self.assertEqual(valid.tolist(), [True, True, True, False])
+        self.assertEqual(active.tolist(), [True, True, True, False])
+        self.assertFalse(adv[0, 1:].any())
+        self.assertFalse(adv[1].any())
+        self.assertTrue((adv[2] == -1).all())
+        torch.testing.assert_close(tokens.sum(-1), scores)
+
+    def test_ties_stay_in_denominator_and_empty_peers_do_not(self):
+        result = feedback([[3], [3], [1], []], use_direct_adv=True)
+        torch.testing.assert_close(result[3], torch.tensor([0.5, 0.5, -1.0, 0.0]))
+
+    def test_small_support_is_not_binarized_or_thresholded(self):
+        # Wins in 501/1001 quantiles and loses in 500/1001.
+        result = feedback([[2] * 501 + [0] * 500, [1]], use_direct_adv=True)
+        torch.testing.assert_close(result[3], torch.tensor([1 / 1001, -1 / 1001]))
+        self.assertTrue(result[5].all())
+
+    def test_empty_singleton_tied_and_cycle_groups_are_inactive(self):
+        cycle = [[33, 21, 12], [32, 23, 11], [31, 22, 13]]
+        for profiles in ([[], []], [[9], []], [[1]], [[1], [1]], cycle):
+            with self.subTest(profiles=profiles):
+                result = feedback(profiles, use_direct_adv=True)
+                for tensor in result[:4]:
+                    self.assertFalse(tensor.any())
+                    self.assertTrue(torch.isfinite(tensor).all())
+                self.assertFalse(result[5].any())
+
+    def test_exact_rational_cancellation_without_tolerance(self):
+        # A balanced support graph with 1/10 + 1/5 - 3/10 = 0.
+        # Floating row summation leaves roundoff and could wrongly enable KL.
+        edges = [Fraction(1, 10), Fraction(1, 5), Fraction(-3, 10), Fraction(1, 10), Fraction(0), Fraction(3, 10)]
+        with patch("verl.trainer.ppo.quantile_feedback._sorted_net_support", side_effect=edges):
+            result = feedback([[4], [3], [2], [1]], use_direct_adv=True)
+        self.assertFalse(result[0].any())
+        self.assertFalse(result[5].any())
+
+    def test_fraction_oracle_bounds_zero_sum_and_batch_permutation(self):
+        rng = np.random.default_rng(7)
+        for _ in range(20):
+            profiles = [rng.integers(-3, 4, rng.integers(1, 10)).tolist() for _ in range(5)]
+            expected = [Fraction(0) for _ in profiles]
+            for i, a_values in enumerate(profiles):
+                a = sorted(a_values, reverse=True)
+                for j, b_values in enumerate(profiles):
+                    if i == j:
+                        continue
+                    b = sorted(b_values, reverse=True)
+                    boundaries = sorted(
+                        {Fraction(k, len(a)) for k in range(len(a) + 1)}
+                        | {Fraction(k, len(b)) for k in range(len(b) + 1)}
+                    )
+                    for start, end in zip(boundaries, boundaries[1:]):
+                        mid = (start + end) / 2
+                        x, y = a[math.floor(mid * len(a))], b[math.floor(mid * len(b))]
+                        expected[i] += (end - start) * (int(x > y) - int(x < y)) / 4
+            scores = feedback(profiles, use_direct_adv=True)[3]
+            torch.testing.assert_close(scores, torch.tensor([float(x) for x in expected]))
+            self.assertLessEqual(float(scores.abs().max()), 1.0)
+            self.assertLess(abs(float(scores.sum())), 2e-7)
+        profiles = [[5], [4], [100], [1], [], [7], [7]]
+        uids = ["a", "a", "b", "b", "a", "c", "c"]
+        original = feedback(profiles, uids, use_direct_adv=True)
+        permutation = [4, 2, 6, 0, 3, 5, 1]
+        reordered = feedback([profiles[i] for i in permutation], [uids[i] for i in permutation], use_direct_adv=True)
+        for expected, actual in zip(original, reordered):
+            torch.testing.assert_close(actual, expected[permutation])
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA unavailable")
+    def test_cuda_matches_cpu(self):
+        values, mask = pack([[9, 3], [8, 6, 1], [1]])
+        uids = np.array([0, 0, 0])
+        cpu = compute_vote_intuitor_advantage(values, mask, uids, use_direct_adv=True)
+        gpu = compute_vote_intuitor_advantage(values.cuda(), mask.cuda(), uids, use_direct_adv=True)
+        for expected, actual in zip(cpu, gpu):
+            torch.testing.assert_close(expected, actual.cpu())
+
+
 class TestTrainerIntegration(unittest.TestCase):
+    def test_direct_advantage_masks_inactive_groups_and_preserves_correctness_scores(self):
+        from verl.trainer.ppo.ray_trainer import compute_advantage, compute_vote_intuitor_metrics
+
+        values, mask = pack([[3], [2], [1], [5], [5], [], [7]])
+        external_scores = torch.full_like(values, 123.0)
+        data = DataProto.from_dict(
+            tensors={"self_certaintys": values, "response_mask": mask, "token_level_scores": external_scores},
+            non_tensors={"uid": np.array(["active"] * 3 + ["tied"] * 2 + ["singleton"] * 2)},
+        )
+        config = OmegaConf.create({"use_direct_adv": True, "peer_threshold": None})
+        data = compute_advantage(data, AdvantageEstimator.INTUITOR, config=config)
+        torch.testing.assert_close(data.batch["advantages"][:, 0], torch.tensor([1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0]))
+        torch.testing.assert_close(data.batch["token_level_scores"], external_scores)
+        torch.testing.assert_close(data.batch["token_level_rewards"].sum(-1), data.batch["advantages"][:, 0])
+        self.assertEqual(data.batch["actor_loss_mask"].flatten().tolist(), [1, 1, 1, 0, 0, 0, 0])
+        metrics = compute_vote_intuitor_metrics(data)
+        self.assertEqual(metrics["direct_adv/zero_advantage_prompt_groups"], 1)
+        self.assertEqual(metrics["direct_adv/positive_rollouts"], 1)
+        self.assertEqual(metrics["direct_adv/negative_rollouts"], 1)
+        self.assertEqual(metrics["vote_intuitor/insufficient_peer_prompt_groups"], 1)
+        pg = torch.ones_like(values, requires_grad=True)
+        kl = torch.ones_like(values, requires_grad=True)
+        loss_mask = data.batch["actor_loss_mask"]
+        loss = agg_loss(pg * data.batch["advantages"], loss_mask, "token-mean")
+        loss = loss + agg_loss(kl, loss_mask, "token-mean")
+        loss.backward()
+        self.assertFalse(pg.grad[3:].any())
+        self.assertFalse(kl.grad[3:].any())
+        self.assertEqual(pg.grad[1].item(), 0)
+        self.assertTrue(kl.grad[:3].all())
+
+    def test_direct_all_zero_batch_skips_actor_update(self):
+        from verl.trainer.ppo.ray_trainer import compute_advantage, compute_vote_intuitor_metrics
+
+        values, mask = pack([[33, 21, 12], [32, 23, 11], [31, 22, 13]])
+        data = DataProto.from_dict(
+            tensors={"self_certaintys": values, "response_mask": mask}, non_tensors={"uid": np.array([0, 0, 0])}
+        )
+        data = compute_advantage(data, AdvantageEstimator.INTUITOR, config=OmegaConf.create({"use_direct_adv": True}))
+        self.assertFalse(data.batch["actor_loss_mask"].any())
+        self.assertFalse(data.batch["intuitor_group_active"].any())
+        self.assertEqual(compute_vote_intuitor_metrics(data)["vote_intuitor/optimizer_step_skipped"], 1)
+
     def test_reward_mask_metrics_and_loss_gradients(self):
         from verl.trainer.ppo.ray_trainer import compute_advantage, compute_vote_intuitor_metrics
 
@@ -234,6 +399,8 @@ class TestTrainerIntegration(unittest.TestCase):
                 ],
             )
         self.assertEqual(config.algorithm.peer_threshold, AlgoConfig().peer_threshold)
+        self.assertIs(config.algorithm.use_direct_adv, False)
+        self.assertIs(AlgoConfig().use_direct_adv, False)
         trainer = SimpleNamespace(config=config, use_critic=False, use_reference_policy=False)
         RayPPOTrainer._validate_config(trainer)
         for threshold in [0, 1.1, float("nan")]:
@@ -244,6 +411,27 @@ class TestTrainerIntegration(unittest.TestCase):
         config.actor_rollout_ref.rollout.n = 1
         with self.assertRaisesRegex(ValueError, "rollout.n"):
             RayPPOTrainer._validate_config(trainer)
+
+        config.actor_rollout_ref.rollout.n = 2
+        config.algorithm.use_direct_adv = True
+        config.algorithm.peer_threshold = None
+        RayPPOTrainer._validate_config(trainer)
+        config.algorithm.use_direct_adv = "false"
+        with self.assertRaisesRegex(TypeError, "bool"):
+            RayPPOTrainer._validate_config(trainer)
+
+    def test_hydra_switch_override_in_both_configs(self):
+        from pathlib import Path
+
+        from hydra import compose, initialize_config_dir
+
+        config_dir = str(Path(__file__).resolve().parents[3] / "verl" / "trainer" / "config")
+        for name in ("ppo_trainer", "ppo_megatron_trainer"):
+            for flag in ("true", "false"):
+                with self.subTest(name=name, flag=flag):
+                    with initialize_config_dir(config_dir=config_dir, version_base=None):
+                        config = compose(config_name=name, overrides=[f"algorithm.use_direct_adv={flag}"])
+                    self.assertIs(config.algorithm.use_direct_adv, flag == "true")
 
     def test_all_filtered_step(self):
         from verl.trainer.ppo.ray_trainer import compute_advantage, compute_vote_intuitor_metrics

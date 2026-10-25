@@ -80,6 +80,8 @@ algorithm:
   lam: 1.0
   adv_estimator: gae
   norm_adv_by_std_in_grpo: True
+  # SIF-Q B: mean signed support, no votes/std normalization. False preserves A.
+  use_direct_adv: False
   peer_threshold: 0.75
   use_kl_in_reward: False
   kl_penalty: kl  # how to estimate kl divergence

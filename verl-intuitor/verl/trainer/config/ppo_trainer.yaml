@@ -137,7 +137,11 @@ algorithm:
   # Whether to normalize advantages by std (specific to GRPO)
   norm_adv_by_std_in_grpo: True
 
-  # SIF-Q version A: win iff exact quantile net support is positive.
+  # SIF-Q: false preserves version A; true uses mean signed D_ij directly.
+  # Version B ignores peer_threshold and norm_adv_by_std_in_grpo, without length gates.
+  use_direct_adv: False
+
+  # Version A only: win iff exact quantile net support is positive.
   # Reward one iff wins / (number of nonempty responses - 1) >= this ratio.
   # No response-length threshold, windows, or quantile sampling grid.
   peer_threshold: 0.75

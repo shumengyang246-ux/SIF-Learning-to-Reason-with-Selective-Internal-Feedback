@@ -283,15 +283,16 @@ def compute_advantage(
     elif adv_estimator == AdvantageEstimator.INTUITOR:
         self_certaintys = data.batch["self_certaintys"]
         grpo_calculation_mask = data.batch["response_mask"]
-        peer_threshold = float(config.get("peer_threshold", 0.75))
+        use_direct_adv = core_algos.validate_use_direct_adv(config.get("use_direct_adv", False))
 
         advantages, returns, vote_token_rewards, vote_rewards, win_counts, active_group_mask, valid_mask = (
             core_algos.compute_vote_intuitor_advantage(
                 self_certainties=self_certaintys,
                 response_mask=grpo_calculation_mask,
                 index=data.non_tensor_batch["uid"],
-                peer_threshold=peer_threshold,
+                peer_threshold=config.get("peer_threshold", 0.75),
                 norm_adv_by_std_in_grpo=norm_adv_by_std_in_grpo,
+                use_direct_adv=use_direct_adv,
             )
         )
         data.batch["advantages"] = advantages
@@ -303,8 +304,9 @@ def compute_advantage(
         data.batch["intuitor_win_counts"] = win_counts
         data.batch["intuitor_group_active"] = active_group_mask
         data.batch["intuitor_valid"] = valid_mask
+        data.meta_info["intuitor_use_direct_adv"] = use_direct_adv
         # The actor uses this mask for both policy and KL losses. Empty responses
-        # and groups with uniform rewards therefore cause no update.
+        # and inactive groups (A: uniform rewards; B: zero advantages) do not update.
         data.batch["actor_loss_mask"] = grpo_calculation_mask * active_group_mask.unsqueeze(-1)
     else:
         # handle all other adv estimator type other than GAE and GRPO
@@ -327,7 +329,7 @@ def compute_advantage(
 
 
 def compute_vote_intuitor_metrics(data: DataProto) -> dict[str, float]:
-    """Counters for SIF-Q peer voting and group-level update selection."""
+    """SIF-Q counters; version B's legacy reward fields hold signed direct scores."""
     rewards = data.batch["intuitor_vote_rewards"]
     win_counts = data.batch["intuitor_win_counts"]
     group_active = data.batch["intuitor_group_active"].bool()
@@ -352,7 +354,7 @@ def compute_vote_intuitor_metrics(data: DataProto) -> dict[str, float]:
     rewarded_rollouts = int((rewards > 0).sum().item())
     valid_rollouts = int(valid.sum().item())
     response_mask = data.batch["response_mask"].bool()
-    return {
+    metrics = {
         "vote_intuitor/total_rollouts": float(total_rollouts),
         "vote_intuitor/rewarded_rollouts": float(rewarded_rollouts),
         "vote_intuitor/rewarded_rollout_ratio": rewarded_rollouts / max(total_rollouts, 1),
@@ -372,6 +374,18 @@ def compute_vote_intuitor_metrics(data: DataProto) -> dict[str, float]:
         "vote_intuitor/nonzero_advantage_tokens": float((data.batch["advantages"] != 0).sum().item()),
         "vote_intuitor/optimizer_step_skipped": float(updated_groups == 0),
     }
+    if data.meta_info.get("intuitor_use_direct_adv", False):
+        metrics.update(
+            {
+                "direct_adv/enabled": 1.0,
+                "direct_adv/zero_advantage_prompt_groups": float(all_zero_groups),
+                "direct_adv/positive_rollouts": float((rewards > 0).sum().item()),
+                "direct_adv/negative_rollouts": float((rewards < 0).sum().item()),
+                "direct_adv/zero_rollouts": float(((rewards == 0) & valid).sum().item()),
+                "direct_adv/mean_abs": float(rewards[valid].abs().mean().item()) if valid_rollouts else 0.0,
+            }
+        )
+    return metrics
 
 
 class RayPPOTrainer:
@@ -472,9 +486,11 @@ class RayPPOTrainer:
     def _validate_config(self):
         config = self.config
         if config.algorithm.adv_estimator == AdvantageEstimator.INTUITOR:
-            core_algos.validate_peer_threshold(config.algorithm.get("peer_threshold", 0.75))
+            use_direct_adv = core_algos.validate_use_direct_adv(config.algorithm.get("use_direct_adv", False))
+            if not use_direct_adv:
+                core_algos.validate_peer_threshold(config.algorithm.get("peer_threshold", 0.75))
             if int(config.actor_rollout_ref.rollout.n) < 2:
-                raise ValueError("SIF-Q peer voting requires rollout.n >= 2")
+                raise ValueError("SIF-Q requires rollout.n >= 2")
 
         # number of GPUs total
         n_gpus = config.trainer.n_gpus_per_node * config.trainer.nnodes
@@ -1547,10 +1563,10 @@ class RayPPOTrainer:
                         if skip_actor_update:
                             # A zero-gradient optimizer step can still change
                             # parameters through Adam momentum or weight decay.
-                            # Skip it entirely when no prompt group has nonuniform peer rewards.
+                            # Skip it entirely when no prompt group has an active advantage signal.
                             print(
                                 f"[vote-intuitor] step={self.global_steps}: "
-                                "no active peer-voting groups; skipping actor update"
+                                "no active SIF-Q groups; skipping actor update"
                             )
                         else:
                             # update actor

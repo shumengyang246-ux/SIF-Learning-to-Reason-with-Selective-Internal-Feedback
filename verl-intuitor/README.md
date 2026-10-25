@@ -1,6 +1,7 @@
-# SIF-Q: exact quantile comparison with peer voting
+# SIF-Q: exact quantile comparison with switchable A/B advantages
 
-The `algorithm.adv_estimator=intuitor` entrypoint now implements SIF-Q version A.
+The `algorithm.adv_estimator=intuitor` entrypoint defaults to SIF-Q version A
+(`algorithm.use_direct_adv=false`), preserving the following peer-voting behavior:
 It replaces the former fixed-window SIF implementation completely.
 
 1. Extract each response's valid-token self-certainties using `response_mask`.
@@ -27,10 +28,43 @@ Configuration (also explicit in `math_intuitor.sh` and `math_intuitor_olmo.sh`):
 ```yaml
 algorithm:
   adv_estimator: intuitor
+  use_direct_adv: False
   peer_threshold: 0.75
   norm_adv_by_std_in_grpo: True
   use_kl_in_reward: False
 ```
+
+Set the **boolean** `algorithm.use_direct_adv=true` to select version B:
+
+```text
+A_i = sum(D_ij for j != i) / (m - 1)
+```
+
+The denominator counts the other nonempty responses, including ties. The signed
+support is used directly as the stopped-gradient advantage on every valid response
+token. No binary votes, peer threshold, group centering, or std normalization are
+applied: `peer_threshold` and `norm_adv_by_std_in_grpo` are ignored in version B.
+For the documented A/B/C example, B produces `[0.75, 0.25, -1.0]`.
+
+Version B keeps all positive response lengths. Groups with fewer than two valid
+responses or exactly zero advantages throughout are excluded from both policy
+and KL/entropy losses; a fully inactive batch skips the optimizer entirely.
+An individual zero-advantage response in an otherwise active group retains the
+existing group mask (zero PG contribution, but KL can still apply). Pairwise
+integer numerators are accumulated as rational numbers before the final float32
+cast, so exact cancellation does not require a numerical tolerance or threshold.
+
+Both `running/train_sif_qwen25_math_1_5b.sh` and
+`running/train_sif_qwen3_1_7b.sh` accept `USE_DIRECT_ADV=true` (default `false`),
+or the explicit override `algorithm.use_direct_adv=true`. All other training
+settings are retained. Use a fresh `EXPERIMENT_NAME` for a separate experiment.
+
+Legacy `intuitor_vote_rewards` / `token_level_rewards` diagnostics hold signed
+continuous scores in B; they are not binary rewards or correctness labels.
+`vote_intuitor/rewarded_rollouts` then counts positive scores, while pairwise win
+counts are diagnostic only. Additional `direct_adv/` metrics record positive,
+negative and zero scores, mean absolute advantage, and zero-advantage groups.
+The existing A metric values and filtering behavior are unchanged.
 
 Old window/count overrides are no longer supported. The actor/KL mask and existing
 loss aggregation are retained; changing loss aggregation is a separate experiment.

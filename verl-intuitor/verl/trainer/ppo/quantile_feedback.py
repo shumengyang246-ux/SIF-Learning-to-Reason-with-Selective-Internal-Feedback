@@ -2,6 +2,7 @@
 
 import math
 from collections.abc import Sequence
+from fractions import Fraction
 
 import numpy as np
 
@@ -13,7 +14,13 @@ def validate_peer_threshold(peer_threshold: float) -> float:
     return threshold
 
 
-def _sorted_net_support(a: Sequence[float], b: Sequence[float]) -> float:
+def validate_use_direct_adv(use_direct_adv: bool) -> bool:
+    if not isinstance(use_direct_adv, bool):
+        raise TypeError(f"use_direct_adv must be a bool, got {type(use_direct_adv).__name__}")
+    return use_direct_adv
+
+
+def _sorted_net_support(a: Sequence[float], b: Sequence[float], *, exact: bool = False) -> float | Fraction:
     """Integrate two descending, nonempty, finite profiles using integer boundaries."""
     li, lj = len(a), len(b)
     total = li * lj  # Python integers cannot overflow; no array of this size is allocated.
@@ -29,7 +36,7 @@ def _sorted_net_support(a: Sequence[float], b: Sequence[float]) -> float:
             i += 1
         if position == next_j:
             j += 1
-    return numerator / total
+    return Fraction(numerator, total) if exact else numerator / total
 
 
 def _sort_profile(scores: Sequence[float]) -> list[float]:
@@ -50,18 +57,20 @@ def quantile_net_support(scores_i: Sequence[float], scores_j: Sequence[float]) -
     return _sorted_net_support(_sort_profile(scores_i), _sort_profile(scores_j))
 
 
-def pairwise_quantile_support(profiles: Sequence[Sequence[float]]) -> np.ndarray:
+def pairwise_quantile_support(profiles: Sequence[Sequence[float]], *, exact: bool = False) -> np.ndarray:
     """Sort each response once, then construct an antisymmetric peer matrix.
 
     Caller supplies only valid responses belonging to one prompt. CPU lists
     avoid a GPU synchronization for every scalar comparison in the merge.
+    With exact=True, retain rational supports in an object array until group
+    aggregation so cancelling evidence gives exactly zero without a tolerance.
     """
     sorted_profiles = [_sort_profile(profile) for profile in profiles]
     count = len(sorted_profiles)
-    support = np.zeros((count, count), dtype=np.float64)
+    support = np.zeros((count, count), dtype=object if exact else np.float64)
     for i in range(count):
         for j in range(i + 1, count):
-            value = _sorted_net_support(sorted_profiles[i], sorted_profiles[j])
+            value = _sorted_net_support(sorted_profiles[i], sorted_profiles[j], exact=exact)
             support[i, j] = value
             support[j, i] = -value
     return support
